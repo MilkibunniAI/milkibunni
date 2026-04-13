@@ -102,19 +102,9 @@ const RAW_DATA = [
   { category: "Photocard Holders", name: "Choco Banana Toast", sku: "PH-005", sold: 0, starting: 1, left: 1, price: 25.00, cost: 4.00 },
   { category: "Photocard Holders", name: "Avocado Toast", sku: "PH-006", sold: 1, starting: 1, left: 0, price: 25.00, cost: 4.00 },
 ];
-const STORAGE_KEY = "milkibunni-products";
 
-const [products, setProducts] = useState(() => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // ignore error and fallback
-    }
-  }
-  return RAW_DATA.map((p, i) => ({ ...p, id: i }));
-});
+const STORAGE_KEY = "milkibunni-products";
+const CATEGORIES = ["All", ...Array.from(new Set(RAW_DATA.map((p) => p.category)))];
 
 // Suggest restock qty = 2× the sold amount (rounded up to nearest 5), min 5
 function suggestQty(sold) {
@@ -127,10 +117,9 @@ function sellThroughRate(sold, starting) {
   return Math.round((sold / starting) * 100);
 }
 
-// Status based on stock left vs sold (if sold a lot and barely left → restock)
+// Status based on stock left vs sold
 function getStatus(left, sold) {
   if (left === 0) return "out";
-  // If stock left is less than what was sold, consider it low
   if (left < sold * 0.3) return "critical";
   if (left < sold * 0.6) return "low";
   return "ok";
@@ -149,19 +138,19 @@ const CATEGORY_ICONS = {
   "Keychains": "🔑", "Coasters": "☕", "Photocard Holders": "📸",
 };
 
-const STORAGE_KEY = "milkibunni-products";
- function MilkibunniRestock() {
-const [products, setProducts] = useState(() => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // ignore broken saved data
+function MilkibunniRestock() {
+  const [products, setProducts] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // ignore broken saved data and fall back
+      }
     }
-  }
-  return RAW_DATA.map((p, i) => ({ ...p, id: i }));
-});
+    return RAW_DATA.map((p, i) => ({ ...p, id: i }));
+  });
+
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("inventory"); // inventory | restock | insights
@@ -171,14 +160,20 @@ const [products, setProducts] = useState(() => {
   const [sortBy, setSortBy] = useState("status");
 
   useEffect(() => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-}, [products]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  }, [products]);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   const filtered = products
-    .filter(p => filter === "All" || p.category === filter)
-    .filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
+    .filter((p) => filter === "All" || p.category === filter)
+    .filter((p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase())
+    )
     .sort((a, b) => {
       const order = { out: 0, critical: 1, low: 2, ok: 3 };
       if (sortBy === "status") return order[getStatus(a.left, a.sold)] - order[getStatus(b.left, b.sold)];
@@ -187,24 +182,25 @@ const [products, setProducts] = useState(() => {
       return a.name.localeCompare(b.name);
     });
 
-  const needsRestock = products.filter(p => getStatus(p.left, p.sold) !== "ok");
-  const outOfStock = products.filter(p => p.left === 0);
+  const needsRestock = products.filter((p) => getStatus(p.left, p.sold) !== "ok");
+  const outOfStock = products.filter((p) => p.left === 0);
   const totalRevenue = products.reduce((s, p) => s + p.sold * p.price, 0);
   const totalProfit = products.reduce((s, p) => s + p.sold * (p.price - p.cost), 0);
   const topSellers = [...products].sort((a, b) => b.sold - a.sold).slice(0, 5);
 
-  // Category breakdown
-  const catStats = CATEGORIES.filter(c => c !== "All").map(cat => {
-    const items = products.filter(p => p.category === cat);
-    const sold = items.reduce((s, p) => s + p.sold, 0);
-    const rev = items.reduce((s, p) => s + p.sold * p.price, 0);
-    return { cat, sold, rev, count: items.length };
-  }).sort((a, b) => b.rev - a.rev);
+  const catStats = CATEGORIES.filter((c) => c !== "All")
+    .map((cat) => {
+      const items = products.filter((p) => p.category === cat);
+      const sold = items.reduce((s, p) => s + p.sold, 0);
+      const rev = items.reduce((s, p) => s + p.sold * p.price, 0);
+      return { cat, sold, rev, count: items.length };
+    })
+    .sort((a, b) => b.rev - a.rev);
 
   const saveEdit = (id) => {
-    const val = parseInt(editLeft);
+    const val = parseInt(editLeft, 10);
     if (isNaN(val) || val < 0) return;
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, left: val } : p));
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, left: val } : p)));
     setEditId(null);
     showToast("Stock updated ✓");
   };
@@ -230,9 +226,18 @@ const [products, setProducts] = useState(() => {
         .progress { height: 5px; background: #FFE4EA; border-radius: 3px; overflow: hidden; margin-top: 5px; }
         .progress-fill { height: 100%; border-radius: 3px; }
         .stat { background: #fff; border-radius: 16px; border: 1px solid #FFE4EA; padding: 20px; }
+
+        @media (max-width: 900px) {
+          .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .insights-grid { grid-template-columns: 1fr !important; }
+        }
+
+        @media (max-width: 640px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
+          .table-wrap { overflow-x: auto; }
+        }
       `}</style>
 
-      {/* HEADER */}
       <div style={{ background: "#fff", borderBottom: "1px solid #FFE4EA", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, background: "linear-gradient(135deg, #FFB3C1, #FF8FA3)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🐰</div>
@@ -251,15 +256,13 @@ const [products, setProducts] = useState(() => {
       </div>
 
       <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto" }}>
-
-        {/* STAT CARDS */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+        <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
           {[
             { label: "Total Revenue", value: `$${totalRevenue.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "💸", color: "#06D6A0" },
             { label: "Total Profit", value: `$${totalProfit.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "📈", color: "#4CC9F0" },
             { label: "Out of Stock", value: outOfStock.length, icon: "🚫", color: "#FF5F7E" },
             { label: "Need Restock", value: needsRestock.length, icon: "🔁", color: "#FF9A3C" },
-          ].map(s => (
+          ].map((s) => (
             <div className="stat" key={s.label}>
               <div style={{ fontSize: 24, marginBottom: 6 }}>{s.icon}</div>
               <div style={{ fontSize: 26, fontFamily: "'Playfair Display', serif", fontWeight: 700, color: s.color }}>{s.value}</div>
@@ -268,31 +271,29 @@ const [products, setProducts] = useState(() => {
           ))}
         </div>
 
-        {/* TABS */}
         <div style={{ borderBottom: "1px solid #FFE4EA", marginBottom: 20, display: "flex", gap: 0 }}>
           {[["inventory", "📦 Inventory"], ["restock", "🔁 Restock List"], ["insights", "✨ Insights"]].map(([id, label]) => (
             <button key={id} className={`tab-btn ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
           ))}
         </div>
 
-        {/* INVENTORY TAB */}
         {tab === "inventory" && (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
               <input
                 placeholder="Search name or SKU…"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 style={{ background: "#fff", border: "1.5px solid #FFE4EA", borderRadius: 999, padding: "7px 16px", fontFamily: "inherit", fontSize: 13, outline: "none", width: 220, color: "#2D2D2D" }}
               />
-              {CATEGORIES.map(c => (
+              {CATEGORIES.map((c) => (
                 <button key={c} className={`pill ${filter === c ? "active" : ""}`} onClick={() => setFilter(c)}>
                   {CATEGORY_ICONS[c] || ""} {c}
                 </button>
               ))}
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
+                onChange={(e) => setSortBy(e.target.value)}
                 style={{ marginLeft: "auto", background: "#fff", border: "1.5px solid #FFE4EA", borderRadius: 999, padding: "7px 14px", fontFamily: "inherit", fontSize: 12, color: "#C07080", outline: "none", cursor: "pointer" }}
               >
                 <option value="status">Sort: Status</option>
@@ -302,17 +303,17 @@ const [products, setProducts] = useState(() => {
               </select>
             </div>
 
-            <div className="card" style={{ overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <div className="card table-wrap" style={{ overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}>
                 <thead>
                   <tr style={{ background: "#FFF5F7", borderBottom: "1px solid #FFE4EA" }}>
-                    {["Product", "SKU", "Category", "Sold", "Starting", "Stock Left", "Sell-Through", "Status", ""].map(h => (
+                    {["Product", "SKU", "Category", "Sold", "Starting", "Stock Left", "Sell-Through", "Status", ""].map((h) => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", color: "#C07080", fontSize: 10, fontWeight: 600, letterSpacing: "0.5px" }}>{h.toUpperCase()}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(p => {
+                  {filtered.map((p) => {
                     const st = getStatus(p.left, p.sold);
                     const cfg = statusConfig[st];
                     const str = sellThroughRate(p.sold, p.starting);
@@ -326,7 +327,7 @@ const [products, setProducts] = useState(() => {
                         <td style={{ padding: "12px 16px", minWidth: 120 }}>
                           {editId === p.id ? (
                             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              <input className="edit-input" value={editLeft} onChange={e => setEditLeft(e.target.value)} onKeyDown={e => e.key === "Enter" && saveEdit(p.id)} autoFocus />
+                              <input className="edit-input" value={editLeft} onChange={(e) => setEditLeft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveEdit(p.id)} autoFocus />
                               <button className="save-btn" onClick={() => saveEdit(p.id)}>✓</button>
                               <button className="action-btn" onClick={() => setEditId(null)}>✕</button>
                             </div>
@@ -363,25 +364,27 @@ const [products, setProducts] = useState(() => {
           </>
         )}
 
-        {/* RESTOCK LIST TAB */}
         {tab === "restock" && (
           <div>
             <div style={{ marginBottom: 16, fontSize: 13, color: "#C07080" }}>
               {needsRestock.length} items below healthy stock levels. Suggested restock quantities are based on 2× units sold.
             </div>
-            <div className="card" style={{ overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <div className="card table-wrap" style={{ overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 700 }}>
                 <thead>
                   <tr style={{ background: "#FFF5F7", borderBottom: "1px solid #FFE4EA" }}>
-                    {["Product", "Category", "Sold", "Left", "Status", "Suggested Order", "Est. Cost"].map(h => (
+                    {["Product", "Category", "Sold", "Left", "Status", "Suggested Order", "Est. Cost"].map((h) => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", color: "#C07080", fontSize: 10, fontWeight: 600, letterSpacing: "0.5px" }}>{h.toUpperCase()}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {needsRestock
-                    .sort((a, b) => { const o = { out: 0, critical: 1, low: 2 }; return o[getStatus(a.left, a.sold)] - o[getStatus(b.left, b.sold)]; })
-                    .map(p => {
+                    .sort((a, b) => {
+                      const o = { out: 0, critical: 1, low: 2 };
+                      return o[getStatus(a.left, a.sold)] - o[getStatus(b.left, b.sold)];
+                    })
+                    .map((p) => {
                       const st = getStatus(p.left, p.sold);
                       const cfg = statusConfig[st];
                       const qty = suggestQty(p.sold);
@@ -409,7 +412,7 @@ const [products, setProducts] = useState(() => {
                 </tbody>
               </table>
             </div>
-            <div style={{ marginTop: 16, padding: "14px 20px", background: "#FFF0F3", borderRadius: 12, fontSize: 13, color: "#C07080", display: "flex", justifyContent: "space-between" }}>
+            <div style={{ marginTop: 16, padding: "14px 20px", background: "#FFF0F3", borderRadius: 12, fontSize: 13, color: "#C07080", display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <span>📦 Total items to restock: <strong style={{ color: "#E05C7A" }}>{needsRestock.length}</strong></span>
               <span>💰 Est. total restock cost: <strong style={{ color: "#E05C7A" }}>
                 ${needsRestock.reduce((s, p) => s + suggestQty(p.sold) * p.cost, 0).toFixed(2)}
@@ -418,10 +421,8 @@ const [products, setProducts] = useState(() => {
           </div>
         )}
 
-        {/* INSIGHTS TAB */}
         {tab === "insights" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {/* Top Sellers */}
+          <div className="insights-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div className="card" style={{ padding: 24 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, marginBottom: 18, color: "#2D2D2D" }}>🏆 Top 5 Sellers</div>
               {topSellers.map((p, i) => (
@@ -440,10 +441,9 @@ const [products, setProducts] = useState(() => {
               ))}
             </div>
 
-            {/* Category Breakdown */}
             <div className="card" style={{ padding: 24 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, marginBottom: 18, color: "#2D2D2D" }}>📊 Revenue by Category</div>
-              {catStats.map(s => (
+              {catStats.map((s) => (
                 <div key={s.cat} style={{ marginBottom: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                     <span style={{ fontWeight: 500 }}>{CATEGORY_ICONS[s.cat]} {s.cat}</span>
@@ -457,12 +457,11 @@ const [products, setProducts] = useState(() => {
               ))}
             </div>
 
-            {/* Sold-Out Heroes */}
             <div className="card" style={{ padding: 24 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#2D2D2D" }}>🔥 Completely Sold Out</div>
               <div style={{ fontSize: 12, color: "#C07080", marginBottom: 16 }}>These items hit zero — strong demand signals for next event.</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {outOfStock.filter(p => p.sold > 0).map(p => (
+                {outOfStock.filter((p) => p.sold > 0).map((p) => (
                   <span key={p.id} style={{ background: "#FFF0F3", border: "1px solid #FFB3C1", borderRadius: 8, padding: "5px 11px", fontSize: 12, color: "#E05C7A", fontWeight: 500 }}>
                     {p.name} ({p.sold} sold)
                   </span>
@@ -470,16 +469,15 @@ const [products, setProducts] = useState(() => {
               </div>
             </div>
 
-            {/* Slow Movers */}
             <div className="card" style={{ padding: 24 }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#2D2D2D" }}>🐌 Slow Movers</div>
               <div style={{ fontSize: 12, color: "#C07080", marginBottom: 16 }}>Sold under 20% of starting stock — consider smaller batches next time.</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {products
-                  .filter(p => p.starting > 0 && sellThroughRate(p.sold, p.starting) < 20 && p.sold > 0)
+                  .filter((p) => p.starting > 0 && sellThroughRate(p.sold, p.starting) < 20 && p.sold > 0)
                   .sort((a, b) => sellThroughRate(a.sold, a.starting) - sellThroughRate(b.sold, b.starting))
                   .slice(0, 6)
-                  .map(p => (
+                  .map((p) => (
                     <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                       <span style={{ color: "#2D2D2D" }}>{p.name}</span>
                       <span style={{ color: "#C07080", fontWeight: 600 }}>{sellThroughRate(p.sold, p.starting)}% sold</span>
