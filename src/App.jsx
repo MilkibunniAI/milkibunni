@@ -149,8 +149,19 @@ const CATEGORY_ICONS = {
   "Keychains": "🔑", "Coasters": "☕", "Photocard Holders": "📸",
 };
 
+const STORAGE_KEY = "milkibunni-products";
  function MilkibunniRestock() {
-  const [products, setProducts] = useState(RAW_DATA.map((p, i) => ({ ...p, id: i })));
+const [products, setProducts] = useState(() => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // ignore broken saved data
+    }
+  }
+  return RAW_DATA.map((p, i) => ({ ...p, id: i }));
+});
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("inventory"); // inventory | restock | insights
