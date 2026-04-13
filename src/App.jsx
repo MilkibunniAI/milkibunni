@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const RAW_DATA = [
   // Stickers
@@ -102,8 +102,19 @@ const RAW_DATA = [
   { category: "Photocard Holders", name: "Choco Banana Toast", sku: "PH-005", sold: 0, starting: 1, left: 1, price: 25.00, cost: 4.00 },
   { category: "Photocard Holders", name: "Avocado Toast", sku: "PH-006", sold: 1, starting: 1, left: 0, price: 25.00, cost: 4.00 },
 ];
+const STORAGE_KEY = "milkibunni-products";
 
-const CATEGORIES = ["All", ...Array.from(new Set(RAW_DATA.map(p => p.category)))];
+const [products, setProducts] = useState(() => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // ignore error and fallback
+    }
+  }
+  return RAW_DATA.map((p, i) => ({ ...p, id: i }));
+});
 
 // Suggest restock qty = 2× the sold amount (rounded up to nearest 5), min 5
 function suggestQty(sold) {
@@ -147,6 +158,10 @@ const CATEGORY_ICONS = {
   const [editLeft, setEditLeft] = useState("");
   const [toast, setToast] = useState(null);
   const [sortBy, setSortBy] = useState("status");
+
+  useEffect(() => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+}, [products]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
